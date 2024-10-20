@@ -1,99 +1,132 @@
-#include <stdio.h>
-#include <errno.h>      
-#include <fcntl.h>      
-#include <unistd.h>     
-#include <sys/types.h>  
-#include <sys/socket.h> 
-#include <netinet/ip.h>
-#include <string.h>
+#include<sys/types.h>
+#include<sys/socket.h>
+#include<netinet/ip.h>
+#include<stdio.h>
+#include<unistd.h>
+#include<stdlib.h>
+#include<string.h>
+#include<termios.h>
 
-void connection_handler(int sockFD) {
 
-    char readBuffer[1000], writeBuffer[1000];
-    ssize_t readBytes, writeBytes;
+void connectionHandler(int socketFileDescriptor);
+void hide_input(char *buffer, int size);
 
-    char tempBuffer[1000];
+void main()
+{
+    int socketFileDescriptor;
+    int connectStatus;
 
-    do {
-        bzero(readBuffer, sizeof(readBuffer)); //Empty the read buffer
-        bzero(tempBuffer, sizeof(tempBuffer));
+    struct sockaddr_in address;
+    
+    socketFileDescriptor = socket(AF_INET, SOCK_STREAM, 0);
+    if (socketFileDescriptor == -1)
+    {
+        perror("Error\n");
+        exit(-1);
+    }
+    printf("Client side socket successfully created!\n");
 
-        readBytes = read(sockFD, readBuffer, sizeof(readBuffer));
+    address.sin_addr.s_addr = htonl(INADDR_ANY);
+    address.sin_family = AF_INET;
+    address.sin_port = htons(8080);
 
+    // Connecting to server
+    connectStatus = connect(socketFileDescriptor, (struct sockaddr *)&address, sizeof(address));
+    if(connectStatus == -1)
+    {
+        perror("Error\n");
+        exit(-1);
+    }
+
+    // Handling server response
+    connectionHandler(socketFileDescriptor);
+    exit(0);
+}
+
+void connectionHandler(int socketFileDescriptor)
+{
+    char readBuffer[4096], writeBuffer[4096], tempBuffer[4096];
+    int readBytes, writeBytes;
+
+    do
+    {
+        bzero(readBuffer, sizeof(readBuffer));
+        readBytes = read(socketFileDescriptor, readBuffer, sizeof(readBuffer));
         if(readBytes == -1)
-            perror("Error while reading from client");
-        else if (readBytes == 0)
-            printf("No error recieved, closing connection\n");     
-        
-        else if(strchr(readBuffer, '^') != NULL) {//search for ^
-
-            strncpy(tempBuffer, readBuffer, strnlen(readBuffer) - 1);
-            printf("%s\n", tempBuffer);
-            writeBytes = write(sockFD, "^", strlen("^"));
-            if (writeBytes == -1) {
-                perror("Error while writing to client socket\n");
-                break;
-            }
-        }
-        else if (strchr(readBuffer, '$') != NULL)
         {
-            // Server sent an error message and is now closing it's end of the connection
-            strncpy(tempBuffer, readBuffer, strlen(readBuffer) - 2);
-            printf("%s\n", tempBuffer);
-            printf("Closing the connection to the server now!\n");
-            break;
+            printf("Unable to read from server\n");
+        }
+        else if(readBytes == 0)
+        {
+            printf("Closing the connection\n");
         }
         else
         {
-            bzero(writeBuffer, sizeof(writeBuffer)); // Empty the write buffer
-
-            if (strchr(readBuffer, '#') != NULL)
-                strcpy(writeBuffer, getpass(readBuffer));
+            if (strcmp(readBuffer, "Enter password: ") == 0)
+            {
+                hide_input(writeBuffer, sizeof(writeBuffer));
+            }            
             else
             {
-                printf("%s\n", readBuffer);
-                scanf("%[^\n]%*c", writeBuffer); // Take user input!
+                bzero(writeBuffer, sizeof(writeBuffer));
+                bzero(tempBuffer, sizeof(tempBuffer));
+                if(strcmp(readBuffer, "Client logging out...\n") == 0)
+                {
+                    strcpy(writeBuffer, "");
+                    printf("Client logging out...\n");
+                    close(socketFileDescriptor);
+                    return;
+                }
+                else if(strchr(readBuffer, '^') != NULL)
+                {
+                    if(strlen(readBuffer) != 1)
+                    {
+                        strncpy(tempBuffer, readBuffer, strlen(readBuffer) - 1);
+                        printf("%s\n", tempBuffer);
+                    }
+                    strcpy(writeBuffer, "");
+                }
+                else if(strcmp(strncpy(tempBuffer, readBuffer, 8), "Loan ID:") == 0)
+                {
+                    printf("%s\n", readBuffer);
+                    strcpy(writeBuffer, "");
+                }
+                else
+                {
+                    printf("%s\n", readBuffer);
+                    scanf("%s", writeBuffer);
+                }                
             }
-
-            writeBytes = write(sockFD, writeBuffer, strlen(writeBuffer));
-            if (writeBytes == -1)
+            
+            writeBytes = write(socketFileDescriptor, writeBuffer, sizeof(writeBuffer));
+            if(writeBytes == -1)
             {
-                perror("Error while writing to client socket!");
+                printf("Unable to write to server\n");
                 printf("Closing the connection to the server now!\n");
                 break;
             }
         }
-    } while (readBytes > 0);
-
-    close(sockFD);
-}
-
-void main()
-{
-    int socketFileDescriptor, connectStatus;
-    struct sockaddr_in serverAddress;
-    struct sockaddr server;
-
-    socketFileDescriptor = socket(AF_INET, SOCK_STREAM, 0);
-    if (socketFileDescriptor == -1)
-    {
-        perror("Error while creating server socket!");
-        _exit(0);
-    }
-
-    serverAddress.sin_family = AF_INET;                // IPv4
-    serverAddress.sin_port = htons(8081);              // Server will listen to port 8080
-    serverAddress.sin_addr.s_addr = htonl(INADDR_ANY); // Binds the socket to all interfaces
-
-    connectStatus = connect(socketFileDescriptor, (struct sockaddr *)&serverAddress, sizeof(serverAddress));
-    if (connectStatus == -1)
-    {
-        perror("Error while connecting to server!");
-        close(socketFileDescriptor);
-        _exit(0);
-    }
-
-    connection_handler(socketFileDescriptor);
+    } while(readBytes > 0);
 
     close(socketFileDescriptor);
+}
+
+// Hiding Password
+void hide_input(char *buffer, int size) {
+    struct termios oldt, newt;
+    
+    // Get the current terminal settings
+    tcgetattr(STDIN_FILENO, &oldt);
+    newt = oldt;
+
+    // Disable echoing of characters
+    newt.c_lflag &= ~ECHO;
+    tcsetattr(STDIN_FILENO, TCSANOW, &newt);
+
+    // Read input
+    printf("Enter password: ");
+    scanf("%s", buffer);
+
+    // Restore original terminal settings
+    tcsetattr(STDIN_FILENO, TCSANOW, &oldt);
 }
