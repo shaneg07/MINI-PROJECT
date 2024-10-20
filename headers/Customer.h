@@ -435,7 +435,7 @@ void applyLoan(int connectionFD, int accountNumber){
 
     // reading & writing loan counter
     struct Counter ct;
-    int file = open(COUNTERPATH, O_RDWR, 0644);
+    int file = open(COUNTERPATH, O_RDWR | O_APPEND | O_CREAT, 0644);
     read(file, &ct, sizeof(ct));
     int lc = ct.count;
     printf("value of lc: %d\n", lc);

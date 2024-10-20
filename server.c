@@ -17,7 +17,7 @@
 #define COUNTERPATH "Data/loanCounter.txt"
 #define HISTORYPATH "Data/trans_hist.txt"
 #define FEEDPATH "Data/feedback.txt"
-#define HASHKEY "$123$shanegomez$"
+#define HASHKEY "$6$saltsalt$"
 
 #define MAINMENU "\n===== Login As =====\n1. Customer\n2. Employee\n3. Manager\n4. Admin\n5. Exit\nEnter your choice: "
 #define ADMINMENU "\n===== Admin =====\n1. Add New Bank Employee\n2. Modify Customer/Employee Details\n3. Manage User Roles\n4. Logout\nEnter your choice: "
